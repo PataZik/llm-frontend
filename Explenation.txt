@@ -1,0 +1,240 @@
+LLM TOOLS – CODE-ERKLÄRUNG
+══════════════════════════════════════════════════════════════════
+
+PROJEKTSTRUKTUR
+───────────────
+Alles steckt in einer einzigen Datei: index.html
+Darin sind drei Bereiche:
+
+  <style>   → das Design (CSS)
+  <body>    → die sichtbare Struktur (HTML)
+  <script>  → die gesamte Logik (JavaScript)
+
+Es gibt keine Datenbank, kein Backend, keinen Server-Code.
+Apache wird nur gebraucht, um die HTML-Datei auszuliefern –
+dasselbe könnte man auch mit einem Doppelklick auf die Datei
+erreichen (außer dass fetch() manchmal am file://-Protokoll scheitert).
+
+══════════════════════════════════════════════════════════════════
+WIE DIE KI-ANFRAGE FUNKTIONIERT
+══════════════════════════════════════════════════════════════════
+
+Die Kernfunktion ist callLLM() im Script-Bereich:
+
+  async function callLLM(systemPrompt, userContent) { ... }
+
+Sie baut eine HTTP POST-Anfrage im OpenAI Chat Completions Format:
+
+  POST /v1/chat/completions
+  Content-Type: application/json
+  Authorization: Bearer [API-Key]   ← nur wenn ein Key gesetzt ist
+
+  Body:
+  {
+    "model": "gemini-2.5-flash",
+    "max_tokens": 32768,
+    "messages": [
+      { "role": "system", "content": "..." },   ← Anweisung an die KI
+      { "role": "user",   "content": "..." }    ← der eigentliche Text
+    ]
+  }
+
+Das ist das Standard-Format, das OpenAI erfunden hat.
+Google Gemini und LM Studio implementieren dasselbe Format,
+deswegen funktioniert die App mit beiden ohne Code-Änderung.
+
+Die Antwort kommt als JSON zurück:
+
+  {
+    "choices": [
+      {
+        "message": {
+          "content": "hier steht die KI-Antwort"
+        }
+      }
+    ]
+  }
+
+Zugegriffen wird mit:
+  data.choices?.[0]?.message?.content ?? ''
+
+Das ?. ist "Optional Chaining" – falls ein Feld fehlt, gibt es
+keinen Fehler sondern einfach undefined. ?? '' ist der Fallback
+auf einen leeren String, falls alles undefined ist.
+
+══════════════════════════════════════════════════════════════════
+SYSTEM PROMPTS – WARUM ZWEI NACHRICHTEN?
+══════════════════════════════════════════════════════════════════
+
+Die KI bekommt immer zwei Nachrichten:
+
+  system → erklärt der KI ihre Rolle und was sie tun soll
+  user   → der eigentliche Inhalt, den der User eingegeben hat
+
+Beispiel für das Übersetzungstool:
+
+  system: "You are a professional translator. Translate the
+           following text into Englisch. Output only the
+           translated text — no explanations, no notes."
+
+  user:   "Hallo, wie geht es dir?"
+
+Die KI antwortet dann nur mit: "Hello, how are you?"
+
+Das nennt sich "Single Shot" – jede Anfrage ist eigenständig,
+es gibt keinen Chat-Verlauf. Die KI erinnert sich nicht an
+vorherige Anfragen.
+
+══════════════════════════════════════════════════════════════════
+EINSTELLUNGEN – WO WERDEN SIE GESPEICHERT?
+══════════════════════════════════════════════════════════════════
+
+Die Einstellungen (URL, Modell, API-Key, Tokens) werden im
+localStorage des Browsers gespeichert:
+
+  localStorage.setItem('llm_url', 'https://...')
+  localStorage.getItem('llm_url')
+
+localStorage ist ein Schlüssel-Wert-Speicher im Browser.
+Er bleibt erhalten, bis der Nutzer den Cache leert.
+Er ist origin-gebunden – nur Seiten auf demselben Host
+(localhost) können darauf zugreifen.
+
+loadConfig() liest alle Werte beim API-Aufruf:
+
+  function loadConfig() {
+    return {
+      url:    localStorage.getItem('llm_url')    || DEFAULTS.url,
+      model:  localStorage.getItem('llm_model')  || DEFAULTS.model,
+      ...
+    };
+  }
+
+Das || DEFAULTS.x stellt sicher, dass immer ein Fallback-Wert
+existiert, wenn noch nichts gespeichert wurde.
+
+══════════════════════════════════════════════════════════════════
+TAB-WECHSEL – WIE FUNKTIONIERT DAS?
+══════════════════════════════════════════════════════════════════
+
+Es gibt drei <div class="tool-panel"> im HTML.
+Standardmäßig haben alle display: none (im CSS).
+Nur das mit der Klasse "active" bekommt display: flex.
+
+switchTab() tauscht einfach diese Klasse:
+
+  function switchTab(name) {
+    document.querySelectorAll('.tool-panel')
+      .forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn')
+      .forEach(b => b.classList.remove('active'));
+
+    document.getElementById('panel-' + name).classList.add('active');
+    document.getElementById('tab-'   + name).classList.add('active');
+  }
+
+Alle Panels existieren gleichzeitig im DOM –
+es wird nur per CSS entschieden, welches sichtbar ist.
+
+══════════════════════════════════════════════════════════════════
+LADEANIMATION – WIE WIRD DER SPINNER ANGEZEIGT?
+══════════════════════════════════════════════════════════════════
+
+Der Spinner ist ein reiner CSS-Kreis:
+
+  .spinner {
+    border: 2px solid rgba(...);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .65s linear infinite;
+    display: none;           ← standardmäßig unsichtbar
+  }
+
+setBusy() fügt dem Button die Klasse "spinning" hinzu:
+
+  function setBusy(btnId, busy) {
+    btn.disabled = busy;
+    if (busy) btn.classList.add('spinning');
+    else      btn.classList.remove('spinning');
+  }
+
+Im CSS reagiert .spinning darauf:
+
+  .spinning .spinner    { display: inline-block; }  ← Spinner sichtbar
+  .spinning .btn-label  { display: none; }           ← Text versteckt
+
+Kein JavaScript-Toggle nötig – alles über CSS-Klassen.
+
+══════════════════════════════════════════════════════════════════
+CODE-TAB – WARUM WIRD DER MARKDOWN-WRAPPER ENTFERNT?
+══════════════════════════════════════════════════════════════════
+
+Viele KI-Modelle wrappen Code-Antworten in Markdown-Backticks:
+
+  ```javascript
+  function add(a, b) { ... }
+  ```
+
+Das sieht gut in einem Markdown-Renderer aus, aber in einem
+<textarea> würden die Backticks als normaler Text erscheinen.
+
+Deswegen werden sie mit einem RegEx entfernt:
+
+  const clean = result
+    .replace(/^```[\w]*\n?/, '')   ← Anfang: ```javascript\n
+    .replace(/\n?```$/, '');       ← Ende: \n```
+
+^ und $ matchen Anfang und Ende des Strings.
+[\w]* matcht den optionalen Sprachname (javascript, python, ...).
+
+══════════════════════════════════════════════════════════════════
+TASTENKÜRZEL – WIE IST DAS UMGESETZT?
+══════════════════════════════════════════════════════════════════
+
+Ein globaler keydown-Listener auf document:
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      const active = document.querySelector('.tool-panel.active');
+      if (active.id === 'panel-translate') runTranslate();
+      else if (active.id === 'panel-grammar') runGrammar();
+      else if (active.id === 'panel-code')   runCode();
+    }
+  });
+
+e.metaKey ist die Cmd-Taste auf Mac – damit funktioniert
+der Shortcut auf beiden Systemen.
+e.preventDefault() verhindert Standard-Browserverhalten
+(z.B. Formular abschicken).
+
+══════════════════════════════════════════════════════════════════
+FEHLERBEHANDLUNG
+══════════════════════════════════════════════════════════════════
+
+Jede Anfrage läuft in einem try/catch/finally Block:
+
+  try {
+    const result = await callLLM(system, input);
+    // Erfolg: Ergebnis anzeigen
+  } catch (e) {
+    setStatus(tool, '✗ Fehler: ' + e.message, 'error');
+  } finally {
+    setBusy(btnId, false);   // Spinner immer entfernen
+  }
+
+finally läuft immer – egal ob Erfolg oder Fehler.
+So bleibt der Button nie dauerhaft deaktiviert.
+
+In callLLM() wird bei einem HTTP-Fehler manuell geworfen:
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
+  }
+
+fetch() wirft selbst nur bei Netzwerkfehlern (kein Server erreichbar).
+HTTP 4xx/5xx gelten für fetch() als "erfolgreich" – deshalb
+muss res.ok manuell geprüft werden.
+
+══════════════════════════════════════════════════════════════════

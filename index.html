@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Productivity Tools</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #f4f3f0;
+      --surface:  #fdfcfb;
+      --surface2: #f0eeeb;
+      --border:   #e2dfd9;
+      --border2:  #ccc9c2;
+      --accent:   #3a3632;
+      --accent2:  #6b6560;
+      --pop:      #5c7c4a;
+      --text:     #2a2724;
+      --text-mid: #6b6560;
+      --text-muted: #a8a49e;
+      --success:  #5c7c4a;
+      --error:    #b04040;
+      --radius:   6px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+      --shadow:    0 4px 16px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.05);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,.09), 0 2px 8px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -.02em;
+    }
+    .logo span { color: var(--text-mid); font-weight: 400; }
+    .logo-bracket { display: none; }
+    .header-line { flex: 1; }
+    .header-tag {
+      font-size: .72rem;
+      color: var(--text-muted);
+      font-weight: 400;
+      letter-spacing: .02em;
+    }
+    button.gear {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-mid);
+      cursor: pointer;
+      font-size: .8rem;
+      font-family: inherit;
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      transition: all .15s;
+      font-weight: 500;
+    }
+    button.gear:hover {
+      background: var(--surface2);
+      border-color: var(--border2);
+      color: var(--text);
+    }
+
+    /* ── Config panel ── */
+    #config-panel {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .3s ease, padding .3s ease;
+    }
+    #config-panel.open { max-height: 420px; padding: 24px 32px; }
+    .config-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      max-width: 1100px;
+    }
+    .config-grid label {
+      display: flex; flex-direction: column; gap: 6px;
+      font-size: .75rem;
+      font-weight: 500;
+      color: var(--text-mid);
+      letter-spacing: .01em;
+    }
+    .config-grid input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: .88rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .config-grid input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(58,54,50,.08);
+    }
+    .config-save { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
+    .config-save button {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .85rem;
+      font-weight: 500;
+      padding: 9px 20px;
+      transition: opacity .15s;
+    }
+    .config-save button:hover { opacity: .85; }
+    #config-status {
+      font-size: .8rem;
+      color: var(--success);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    #config-status.show { opacity: 1; }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px;
+      gap: 24px;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px;
+      width: fit-content;
+      box-shadow: var(--shadow-sm);
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .85rem;
+      font-weight: 500;
+      padding: 8px 18px;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .tab-btn:hover { color: var(--text); background: var(--surface2); }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+    .tab-icon { font-size: .95rem; }
+
+    /* ── Tool panel ── */
+    .tool-panel { display: none; flex-direction: column; gap: 18px; }
+    .tool-panel.active { display: flex; }
+
+    .panel-desc {
+      font-size: .84rem;
+      color: var(--text-mid);
+      line-height: 1.6;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ── Lang row ── */
+    .lang-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .lang-row label {
+      font-size: .82rem;
+      font-weight: 500;
+      color: var(--text-mid);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .lang-row select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 7px 32px 7px 12px;
+      font-size: .85rem;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a8a49e'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      box-shadow: var(--shadow-sm);
+    }
+    .lang-row select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(58,54,50,.08);
+    }
+
+    /* ── Editors ── */
+    .editors { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 768px) { .editors { grid-template-columns: 1fr; } }
+
+    .editor-box {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .editor-box:focus-within {
+      border-color: var(--border2);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      font-size: .72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+    .editor-header .actions { display: flex; gap: 4px; }
+    .icon-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: .85rem;
+      transition: all .15s;
+    }
+    .icon-btn:hover {
+      color: var(--text);
+      background: var(--border);
+      border-color: var(--border2);
+    }
+
+    textarea {
+      background: var(--surface);
+      border: none;
+      color: var(--text);
+      flex: 1;
+      font-family: inherit;
+      font-size: .93rem;
+      line-height: 1.7;
+      min-height: 300px;
+      outline: none;
+      padding: 18px;
+      resize: none;
+    }
+    textarea::placeholder { color: var(--text-muted); }
+    textarea[readonly] { background: #faf9f7; color: var(--text-mid); cursor: default; }
+
+    .char-count {
+      padding: 6px 14px;
+      font-size: .72rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      text-align: right;
+      background: var(--surface2);
+    }
+
+    /* ── Action row ── */
+    .action-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .btn-primary {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .88rem;
+      font-weight: 500;
+      padding: 10px 24px;
+      transition: opacity .15s, transform .1s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-primary:hover:not(:disabled) { opacity: .88; }
+    .btn-primary:active:not(:disabled) { transform: scale(.98); }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-mid);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .85rem;
+      font-weight: 500;
+      padding: 9px 18px;
+      transition: all .15s;
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover {
+      background: var(--surface2);
+      border-color: var(--border2);
+      color: var(--text);
+    }
+
+    .status-msg {
+      font-size: .82rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-msg.error { color: var(--error); }
+    .status-msg.success { color: var(--success); }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+      display: none;
+    }
+    .spinning .spinner { display: inline-block; }
+    .spinning .btn-label { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Code ── */
+    textarea.code {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: .85rem;
+      tab-size: 2;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: .75rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    footer span { color: var(--border2); margin: 0 8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">LLM<span>Tools</span></div>
+  <div class="header-line"></div>
+  <span class="header-tag">OpenAI-kompatibler Endpunkt</span>
+  <button class="gear" title="Einstellungen" onclick="toggleConfig()">⚙ Einstellungen</button>
+</header>
+
+<!-- Config Panel -->
+<div id="config-panel">
+  <div class="config-grid">
+    <label>
+      <span>Endpoint URL</span>
+      <input id="cfg-url" type="url" placeholder="http://127.0.0.1:1234/v1/chat/completions" />
+    </label>
+    <label>
+      <span>Modell</span>
+      <input id="cfg-model" type="text" placeholder="lmstudio-community/gemma-4-E4B-it-GGUF" />
+    </label>
+    <label>
+      <span>API Key (optional)</span>
+      <input id="cfg-key" type="password" placeholder="sk-... oder leer lassen" />
+    </label>
+    <label>
+      <span>Max. Output Tokens</span>
+      <input id="cfg-tokens" type="number" placeholder="4096" min="256" max="131072" />
+    </label>
+  </div>
+  <div class="config-save">
+    <button onclick="saveConfig()">Speichern</button>
+    <span id="config-status">✓ Einstellungen gespeichert</span>
+  </div>
+</div>
+
+<main>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('translate')" id="tab-translate">
+      <span class="tab-icon">🌐</span> Übersetzen
+    </button>
+    <button class="tab-btn" onclick="switchTab('grammar')" id="tab-grammar">
+      <span class="tab-icon">✏️</span> Rechtschreibung
+    </button>
+    <button class="tab-btn" onclick="switchTab('code')" id="tab-code">
+      <span class="tab-icon">💻</span> Code-Kommentierung
+    </button>
+  </div>
+
+  <!-- ── TRANSLATION ── -->
+  <div class="tool-panel active" id="panel-translate">
+    <div class="lang-row">
+      <label>
+        Von:
+        <select id="src-lang">
+          <option value="auto">Automatisch erkennen</option>
+          <option value="de">Deutsch</option>
+          <option value="en">Englisch</option>
+          <option value="fr">Französisch</option>
+          <option value="es">Spanisch</option>
+          <option value="it">Italienisch</option>
+          <option value="pt">Portugiesisch</option>
+          <option value="nl">Niederländisch</option>
+          <option value="pl">Polnisch</option>
+          <option value="ru">Russisch</option>
+          <option value="ja">Japanisch</option>
+          <option value="zh">Chinesisch</option>
+        </select>
+      </label>
+      <label>
+        Nach:
+        <select id="tgt-lang">
+          <option value="de">Deutsch</option>
+          <option value="en" selected>Englisch</option>
+          <option value="fr">Französisch</option>
+          <option value="es">Spanisch</option>
+          <option value="it">Italienisch</option>
+          <option value="pt">Portugiesisch</option>
+          <option value="nl">Niederländisch</option>
+          <option value="pl">Polnisch</option>
+          <option value="ru">Russisch</option>
+          <option value="ja">Japanisch</option>
+          <option value="zh">Chinesisch</option>
+        </select>
+      </label>
+    </div>
+    <div class="editors">
+      <div class="editor-box">
+        <div class="editor-header">
+          Originaltext
+          <div class="actions">
+            <button class="icon-btn" title="Leeren" onclick="clearInput('translate')">✕</button>
+          </div>
+        </div>
+        <textarea id="translate-input" placeholder="Text zum Übersetzen eingeben…" oninput="updateCount('translate-input','translate-in-count')"></textarea>
+        <div class="char-count" id="translate-in-count">0 Zeichen</div>
+      </div>
+      <div class="editor-box">
+        <div class="editor-header">
+          Übersetzung
+          <div class="actions">
+            <button class="icon-btn" title="Kopieren" onclick="copyOutput('translate-output')">⎘</button>
+          </div>
+        </div>
+        <textarea id="translate-output" readonly placeholder="Übersetzung erscheint hier…"></textarea>
+        <div class="char-count" id="translate-out-count">0 Zeichen</div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="btn-primary" id="translate-btn" onclick="runTranslate()">
+        <span class="spinner"></span>
+        <span class="btn-label">🌐 Übersetzen</span>
+      </button>
+      <button class="btn-secondary" onclick="swapLangs()">⇄ Sprachen tauschen</button>
+      <span class="status-msg" id="translate-status"></span>
+    </div>
+  </div>
+
+  <!-- ── GRAMMAR ── -->
+  <div class="tool-panel" id="panel-grammar">
+    <div class="editors">
+      <div class="editor-box">
+        <div class="editor-header">
+          Originaltext
+          <div class="actions">
+            <button class="icon-btn" title="Leeren" onclick="clearInput('grammar')">✕</button>
+          </div>
+        </div>
+        <textarea id="grammar-input" placeholder="Zu prüfenden Text eingeben…" oninput="updateCount('grammar-input','grammar-in-count')"></textarea>
+        <div class="char-count" id="grammar-in-count">0 Zeichen</div>
+      </div>
+      <div class="editor-box">
+        <div class="editor-header">
+          Korrigierter Text
+          <div class="actions">
+            <button class="icon-btn" title="Kopieren" onclick="copyOutput('grammar-output')">⎘</button>
+          </div>
+        </div>
+        <textarea id="grammar-output" readonly placeholder="Korrektur erscheint hier…"></textarea>
+        <div class="char-count" id="grammar-out-count">0 Zeichen</div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="btn-primary" id="grammar-btn" onclick="runGrammar()">
+        <span class="spinner"></span>
+        <span class="btn-label">✏️ Prüfen & Korrigieren</span>
+      </button>
+      <span class="status-msg" id="grammar-status"></span>
+    </div>
+  </div>
+
+  <!-- ── CODE ── -->
+  <div class="tool-panel" id="panel-code">
+    <div class="lang-row">
+      <label>
+        Kommentar-Stil:
+        <select id="comment-style">
+          <option value="jsdoc">JSDoc (JavaScript / TypeScript)</option>
+          <option value="python">Docstrings (Python)</option>
+          <option value="javadoc">Javadoc (Java)</option>
+          <option value="csharp">XML-Docs (C#)</option>
+          <option value="generic">Inline-Kommentare</option>
+        </select>
+      </label>
+    </div>
+    <div class="editors">
+      <div class="editor-box">
+        <div class="editor-header">
+          Quellcode
+          <div class="actions">
+            <button class="icon-btn" title="Leeren" onclick="clearInput('code')">✕</button>
+          </div>
+        </div>
+        <textarea id="code-input" class="code" placeholder="Code hier einfügen…" oninput="updateCount('code-input','code-in-count')"></textarea>
+        <div class="char-count" id="code-in-count">0 Zeichen</div>
+      </div>
+      <div class="editor-box">
+        <div class="editor-header">
+          Kommentierter Code
+          <div class="actions">
+            <button class="icon-btn" title="Kopieren" onclick="copyOutput('code-output')">⎘</button>
+          </div>
+        </div>
+        <textarea id="code-output" class="code" readonly placeholder="Kommentierter Code erscheint hier…"></textarea>
+        <div class="char-count" id="code-out-count">0 Zeichen</div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="btn-primary" id="code-btn" onclick="runCode()">
+        <span class="spinner"></span>
+        <span class="btn-label">💻 Kommentieren</span>
+      </button>
+      <span class="status-msg" id="code-status"></span>
+    </div>
+  </div>
+</main>
+
+<footer>LLM Productivity Tools <span>//</span> Single Page Application <span>//</span> OpenAI-Compatible Endpoint</footer>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const DEFAULTS = {
+  url: 'http://127.0.0.1:1234/v1/chat/completions',
+  model: 'lmstudio-community/gemma-4-E4B-it-GGUF',
+  key: '',
+  tokens: 4096,
+};
+
+function loadConfig() {
+  return {
+    url:    localStorage.getItem('llm_url')    || DEFAULTS.url,
+    model:  localStorage.getItem('llm_model')  || DEFAULTS.model,
+    key:    localStorage.getItem('llm_key')    || DEFAULTS.key,
+    tokens: parseInt(localStorage.getItem('llm_tokens') || DEFAULTS.tokens, 10),
+  };
+}
+
+function saveConfig() {
+  localStorage.setItem('llm_url',    document.getElementById('cfg-url').value.trim()   || DEFAULTS.url);
+  localStorage.setItem('llm_model',  document.getElementById('cfg-model').value.trim() || DEFAULTS.model);
+  localStorage.setItem('llm_key',    document.getElementById('cfg-key').value.trim());
+  localStorage.setItem('llm_tokens', document.getElementById('cfg-tokens').value       || DEFAULTS.tokens);
+
+  const s = document.getElementById('config-status');
+  s.classList.add('show');
+  setTimeout(() => s.classList.remove('show'), 2500);
+}
+
+function toggleConfig() {
+  const panel = document.getElementById('config-panel');
+  const open = panel.classList.toggle('open');
+  if (open) {
+    const cfg = loadConfig();
+    document.getElementById('cfg-url').value    = cfg.url;
+    document.getElementById('cfg-model').value  = cfg.model;
+    document.getElementById('cfg-key').value    = cfg.key;
+    document.getElementById('cfg-tokens').value = cfg.tokens;
+  }
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function updateCount(inputId, countId) {
+  const len = document.getElementById(inputId).value.length;
+  document.getElementById(countId).textContent = len.toLocaleString('de') + ' Zeichen';
+}
+
+function clearInput(tool) {
+  document.getElementById(tool + '-input').value = '';
+  document.getElementById(tool + '-output').value = '';
+  updateCount(tool + '-input',  tool + '-in-count');
+  setStatus(tool, '');
+}
+
+function copyOutput(id) {
+  const val = document.getElementById(id).value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(() => {
+    const tool = id.replace('-output', '');
+    setStatus(tool, '✓ Kopiert!', 'success');
+    setTimeout(() => setStatus(tool, ''), 1800);
+  });
+}
+
+function setStatus(tool, msg, type = '') {
+  const el = document.getElementById(tool + '-status');
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+}
+
+function setBusy(btnId, busy) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = busy;
+  if (busy) btn.classList.add('spinning');
+  else       btn.classList.remove('spinning');
+}
+
+// ── LLM call ────────────────────────────────────────────────────────────────
+async function callLLM(systemPrompt, userContent) {
+  const cfg = loadConfig();
+  const headers = { 'Content-Type': 'application/json' };
+  if (cfg.key) headers['Authorization'] = 'Bearer ' + cfg.key;
+
+  const body = {
+    model: cfg.model,
+    max_tokens: cfg.tokens,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user',   content: userContent  },
+    ],
+  };
+
+  const res = await fetch(cfg.url, { method: 'POST', headers, body: JSON.stringify(body) });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`HTTP ${res.status}: ${txt.slice(0, 300)}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
+
+// ── Language name helper ─────────────────────────────────────────────────────
+const LANG_NAMES = {
+  auto:'der automatisch erkannten Sprache', de:'Deutsch', en:'Englisch',
+  fr:'Französisch', es:'Spanisch', it:'Italienisch', pt:'Portugiesisch',
+  nl:'Niederländisch', pl:'Polnisch', ru:'Russisch', ja:'Japanisch', zh:'Chinesisch'
+};
+
+// ── Translation ──────────────────────────────────────────────────────────────
+async function runTranslate() {
+  const input = document.getElementById('translate-input').value.trim();
+  if (!input) { setStatus('translate', 'Bitte Text eingeben.', 'error'); return; }
+
+  const src = document.getElementById('src-lang').value;
+  const tgt = document.getElementById('tgt-lang').value;
+  const srcName = LANG_NAMES[src];
+  const tgtName = LANG_NAMES[tgt];
+
+  const system = src === 'auto'
+    ? `You are a professional translator. Translate the following text into ${tgtName}. Output only the translated text — no explanations, no notes, no original text.`
+    : `You are a professional translator. Translate the following text from ${srcName} into ${tgtName}. Output only the translated text — no explanations, no notes, no original text.`;
+
+  setBusy('translate-btn', true);
+  setStatus('translate', 'Wird übersetzt…');
+  try {
+    const result = await callLLM(system, input);
+    document.getElementById('translate-output').value = result;
+    updateCount('translate-output', 'translate-out-count');
+    setStatus('translate', '✓ Fertig', 'success');
+  } catch (e) {
+    setStatus('translate', '✗ Fehler: ' + e.message, 'error');
+  } finally {
+    setBusy('translate-btn', false);
+  }
+}
+
+function swapLangs() {
+  const srcSel = document.getElementById('src-lang');
+  const tgtSel = document.getElementById('tgt-lang');
+  if (srcSel.value === 'auto') { srcSel.value = tgtSel.value; tgtSel.value = 'de'; return; }
+  [srcSel.value, tgtSel.value] = [tgtSel.value, srcSel.value];
+
+  const inTa  = document.getElementById('translate-input');
+  const outTa = document.getElementById('translate-output');
+  if (outTa.value) {
+    inTa.value  = outTa.value;
+    outTa.value = '';
+    updateCount('translate-input', 'translate-in-count');
+    updateCount('translate-output', 'translate-out-count');
+  }
+}
+
+// ── Grammar ───────────────────────────────────────────────────────────────────
+async function runGrammar() {
+  const input = document.getElementById('grammar-input').value.trim();
+  if (!input) { setStatus('grammar', 'Bitte Text eingeben.', 'error'); return; }
+
+  const system = `You are a professional proofreader and grammar expert fluent in all major languages.
+Correct all spelling mistakes, grammatical errors, and punctuation issues in the following text.
+Keep the original language, tone, style, and meaning intact.
+Output only the corrected text — no explanations, no comments, no list of changes.`;
+
+  setBusy('grammar-btn', true);
+  setStatus('grammar', 'Wird geprüft…');
+  try {
+    const result = await callLLM(system, input);
+    document.getElementById('grammar-output').value = result;
+    updateCount('grammar-output', 'grammar-out-count');
+    setStatus('grammar', '✓ Fertig', 'success');
+  } catch (e) {
+    setStatus('grammar', '✗ Fehler: ' + e.message, 'error');
+  } finally {
+    setBusy('grammar-btn', false);
+  }
+}
+
+// ── Code commenting ───────────────────────────────────────────────────────────
+const COMMENT_PROMPTS = {
+  jsdoc: `You are an expert JavaScript/TypeScript developer.
+Add comprehensive JSDoc comments to every function, class, method, and interface in the following code.
+Include @param, @returns, @throws, and @example tags where appropriate.
+Do NOT change any logic, variable names, or structure — only add documentation comments.
+Output only the fully commented code, nothing else.`,
+
+  python: `You are an expert Python developer.
+Add comprehensive docstrings (Google-style) to every function, class, and method in the following code.
+Include Args, Returns, and Raises sections where appropriate.
+Do NOT change any logic, variable names, or structure — only add documentation.
+Output only the fully documented code, nothing else.`,
+
+  javadoc: `You are an expert Java developer.
+Add comprehensive Javadoc comments to every class, method, and interface in the following code.
+Include @param, @return, @throws tags where appropriate.
+Do NOT change any logic, variable names, or structure — only add documentation comments.
+Output only the fully commented code, nothing else.`,
+
+  csharp: `You are an expert C# developer.
+Add comprehensive XML documentation comments (///) to every class, method, property, and interface in the following code.
+Include <summary>, <param>, <returns>, and <exception> tags where appropriate.
+Do NOT change any logic, variable names, or structure — only add documentation comments.
+Output only the fully commented code, nothing else.`,
+
+  generic: `You are an expert software developer.
+Add clear, concise inline comments to the following code to explain what each section, function, and complex line does.
+Do NOT change any logic, variable names, or structure — only add comments.
+Output only the fully commented code, nothing else.`,
+};
+
+async function runCode() {
+  const input = document.getElementById('code-input').value.trim();
+  if (!input) { setStatus('code', 'Bitte Code eingeben.', 'error'); return; }
+
+  const style  = document.getElementById('comment-style').value;
+  const system = COMMENT_PROMPTS[style];
+
+  setBusy('code-btn', true);
+  setStatus('code', 'Wird kommentiert…');
+  try {
+    const result = await callLLM(system, input);
+    // Strip markdown code fences if model wraps output
+    const clean = result.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+    document.getElementById('code-output').value = clean;
+    updateCount('code-output', 'code-out-count');
+    setStatus('code', '✓ Fertig', 'success');
+  } catch (e) {
+    setStatus('code', '✗ Fehler: ' + e.message, 'error');
+  } finally {
+    setBusy('code-btn', false);
+  }
+}
+
+// ── Keyboard shortcuts ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const active = document.querySelector('.tool-panel.active');
+    if (!active) return;
+    if (active.id === 'panel-translate') runTranslate();
+    else if (active.id === 'panel-grammar') runGrammar();
+    else if (active.id === 'panel-code') runCode();
+  }
+});
+</script>
+</body>
+</html>
